@@ -37,8 +37,8 @@ def extract_text_from_pdf(file):
 def parse_text_to_entry(text):
     if "hotel" not in text.lower():
         return None
-    lugar = re.search(r"(?i)(hotel|property|alojamiento) ?:? ?(.+)", text)
-    fechas = re.findall(r"(\w+ \d{1,2}, \d{4})", text)
+    lugar = re.search(r"(?i)(hotel|property|accommodation|宿泊施設) ?:? ?(.{3,100})", text)
+    fechas = re.findall(r"([A-Z][a-z]+ \\d{1,2}, \\d{4})", text)
     check = " – ".join(fechas[:2]) if len(fechas) >= 2 else ""
     return {
         "Fecha": fechas[0] if fechas else "",
