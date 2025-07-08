@@ -35,15 +35,24 @@ def extract_text_from_pdf(file):
 # Función de parsing básico
 @st.cache_data
 def parse_text_to_entry(text):
-    if "hotel" not in text.lower():
+    # Solo procesamos si parece ser una reserva de hotel
+    if "hotel" not in text.lower() and "property" not in text.lower():
         return None
-    lugar = re.search(r"(?i)(hotel|property|accommodation|宿泊施設) ?:? ?(.{3,100})", text)
-    fechas = re.findall(r"([A-Z][a-z]+ \\d{1,2}, \\d{4})", text)
-    check = " – ".join(fechas[:2]) if len(fechas) >= 2 else ""
+
+    # Buscar nombre del hotel
+    lugar_match = re.search(r"(?i)(Property|Establecimiento)\s*:\s*(.+)", text)
+    lugar = lugar_match.group(2).strip() if lugar_match else ""
+
+    # Buscar fechas de check-in y check-out
+    fechas = re.findall(r"([A-Z][a-z]+ \d{1,2}, \d{4})", text)
+    fecha_checkin = fechas[0] if len(fechas) >= 1 else ""
+    fecha_checkout = fechas[1] if len(fechas) >= 2 else ""
+    check_range = f"{fecha_checkin} – {fecha_checkout}" if fecha_checkin and fecha_checkout else ""
+
     return {
-        "Fecha": fechas[0] if fechas else "",
-        "Lugar / Hotel": lugar.group(2).strip() if lugar else "",
-        "Check-in / Check-out": check,
+        "Fecha": fecha_checkin,
+        "Lugar / Hotel": lugar,
+        "Check-in / Check-out": check_range,
         "Enlace de reserva": "",
         "Enlace cómo llegar": ""
     }
