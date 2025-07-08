@@ -35,34 +35,23 @@ def extract_text_from_pdf(file):
 # Función de parsing básico
 @st.cache_data
 def parse_text_to_entry(text):
-    lines = text.splitlines()
-    lugar = ""
-    fecha_checkin = ""
-    fecha_checkout = ""
+    # Preprocesar texto
+    text = text.replace("\n", " ").replace("  ", " ").strip()
 
-    for i, line in enumerate(lines):
-        clean = line.strip()
+    # Lugar / Hotel
+    lugar_match = re.search(r"(?i)Property\s*:\s*(.*?)\s*(Address|Dirección)\s*:", text)
+    lugar = lugar_match.group(1).strip() if lugar_match else ""
 
-        # Buscar nombre del hotel
-        if "property" in clean.lower() or "establecimiento" in clean.lower():
-            # El valor suele estar en la siguiente línea
-            if i + 1 < len(lines):
-                lugar = lines[i + 1].strip()
+    # Fechas
+    arrival_match = re.search(r"(?i)Arrival\s*:\s*(\w+ \d{1,2}, \d{4})", text)
+    departure_match = re.search(r"(?i)Departure\s*:\s*(\w+ \d{1,2}, \d{4})", text)
 
-        # Buscar fecha de llegada
-        if "arrival" in clean.lower() or "llegada" in clean.lower():
-            if i + 1 < len(lines):
-                fecha_checkin = lines[i + 1].strip()
-
-        # Buscar fecha de salida
-        if "departure" in clean.lower() or "salida" in clean.lower():
-            if i + 1 < len(lines):
-                fecha_checkout = lines[i + 1].strip()
-
+    fecha_checkin = arrival_match.group(1) if arrival_match else ""
+    fecha_checkout = departure_match.group(1) if departure_match else ""
     check_range = f"{fecha_checkin} – {fecha_checkout}" if fecha_checkin and fecha_checkout else ""
 
-    if not lugar and not fecha_checkin:
-        return None  # Si no hay nada útil, descartamos
+    if not lugar or not fecha_checkin:
+        return None  # Descartar si falta algo clave
 
     return {
         "Fecha": fecha_checkin,
