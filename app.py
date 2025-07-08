@@ -35,19 +35,34 @@ def extract_text_from_pdf(file):
 # Función de parsing básico
 @st.cache_data
 def parse_text_to_entry(text):
-    # Solo procesamos si parece ser una reserva de hotel
-    if "hotel" not in text.lower() and "property" not in text.lower():
-        return None
+    lines = text.splitlines()
+    lugar = ""
+    fecha_checkin = ""
+    fecha_checkout = ""
 
-    # Buscar nombre del hotel
-    lugar_match = re.search(r"(?i)(Property|Establecimiento)\s*:\s*(.+)", text)
-    lugar = lugar_match.group(2).strip() if lugar_match else ""
+    for i, line in enumerate(lines):
+        clean = line.strip()
 
-    # Buscar fechas de check-in y check-out
-    fechas = re.findall(r"([A-Z][a-z]+ \d{1,2}, \d{4})", text)
-    fecha_checkin = fechas[0] if len(fechas) >= 1 else ""
-    fecha_checkout = fechas[1] if len(fechas) >= 2 else ""
+        # Buscar nombre del hotel
+        if "property" in clean.lower() or "establecimiento" in clean.lower():
+            # El valor suele estar en la siguiente línea
+            if i + 1 < len(lines):
+                lugar = lines[i + 1].strip()
+
+        # Buscar fecha de llegada
+        if "arrival" in clean.lower() or "llegada" in clean.lower():
+            if i + 1 < len(lines):
+                fecha_checkin = lines[i + 1].strip()
+
+        # Buscar fecha de salida
+        if "departure" in clean.lower() or "salida" in clean.lower():
+            if i + 1 < len(lines):
+                fecha_checkout = lines[i + 1].strip()
+
     check_range = f"{fecha_checkin} – {fecha_checkout}" if fecha_checkin and fecha_checkout else ""
+
+    if not lugar and not fecha_checkin:
+        return None  # Si no hay nada útil, descartamos
 
     return {
         "Fecha": fecha_checkin,
