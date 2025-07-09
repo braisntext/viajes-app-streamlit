@@ -31,6 +31,14 @@ st.markdown("""
         font-weight: bold;
         margin: 10px 0;
     }
+    button[data-testid="baseButton-secondary"] {
+        background-color: #f0f2f6;
+        color: #262730;
+    }
+    button[data-testid="baseButton-primary"] {
+        background-color: #1f77b4;
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
