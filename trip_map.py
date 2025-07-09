@@ -68,8 +68,10 @@ class TripMap:
         # Sort by date for connecting lines
         df_sorted = df_with_coords.sort_values('start_date')
         
-        # Add markers and connections
-        for idx, row in df_sorted.iterrows():
+        # Add markers with hover-activated connections
+        for idx in range(len(df_sorted)):
+            row = df_sorted.iloc[idx]
+            
             # Determine color based on status
             if row['status'] == 'past':
                 color = 'lightgreen'
@@ -100,31 +102,34 @@ class TripMap:
                 icon=folium.Icon(color=color, icon='info-sign')
             )
             marker.add_to(m)
-            
-            # Add connections to previous and next trips
-            df_sorted['idx'] = range(len(df_sorted))
-            current_idx = df_sorted[df_sorted.index == idx]['idx'].iloc[0]
+        
+        # Add all connections as hidden polylines
+        for idx in range(len(df_sorted)):
+            row = df_sorted.iloc[idx]
             
             # Connection to previous trip (dotted)
-            if current_idx > 0:
-                prev_row = df_sorted.iloc[current_idx - 1]
+            if idx > 0:
+                prev_row = df_sorted.iloc[idx - 1]
                 folium.PolyLine(
                     locations=[prev_row['coordinates'], row['coordinates']],
                     color='gray',
                     weight=2,
-                    opacity=0.5,
-                    dash_array='5, 10'  # Dotted line
+                    opacity=0,  # Start hidden
+                    dash_array='5, 10',  # Dotted line
+                    class_name=f'connection-{idx}-prev'
                 ).add_to(m)
             
             # Connection to next trip (solid)
-            if current_idx < len(df_sorted) - 1:
-                next_row = df_sorted.iloc[current_idx + 1]
+            if idx < len(df_sorted) - 1:
+                next_row = df_sorted.iloc[idx + 1]
                 folium.PolyLine(
                     locations=[row['coordinates'], next_row['coordinates']],
                     color='blue',
                     weight=2,
-                    opacity=0.5
+                    opacity=0,  # Start hidden
+                    class_name=f'connection-{idx}-next'
                 ).add_to(m)
+            
         
         # Add legend
         legend_html = '''
@@ -137,10 +142,43 @@ class TripMap:
             <p style="margin: 5px 0;"><span style="color: red;">●</span> Current trip</p>
             <p style="margin: 5px 0;"><span style="color: orange;">●</span> Future trips</p>
             <hr style="margin: 5px 0;">
-            <p style="margin: 5px 0; font-size: 12px;">Click markers for details</p>
+            <p style="margin: 5px 0; font-size: 12px;">Hover over markers to see connections</p>
+            <p style="margin: 5px 0; font-size: 12px;">Click for details & Google Maps</p>
         </div>
         '''
         m.get_root().html.add_child(folium.Element(legend_html))
+
+        # Add custom JavaScript for hover effects
+        hover_script = f"""
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            setTimeout(function() {{
+                var markers = document.querySelectorAll('.leaflet-marker-icon');
+                var polylines = document.querySelectorAll('.leaflet-interactive');
+                
+                markers.forEach(function(marker, markerIndex) {{
+                    marker.addEventListener('mouseenter', function() {{
+                        polylines.forEach(function(polyline) {{
+                            var className = polyline.getAttribute('class');
+                            if (className && className.includes('connection-' + markerIndex)) {{
+                                polyline.style.opacity = '0.7';
+                            }}
+                        }});
+                    }});
+                    
+                    marker.addEventListener('mouseleave', function() {{
+                        polylines.forEach(function(polyline) {{
+                            if (polyline.getAttribute('class') && polyline.getAttribute('class').includes('connection-')) {{
+                                polyline.style.opacity = '0';
+                            }}
+                        }});
+                    }});
+                }});
+            }}, 1000);
+        }});
+        </script>
+        """
+        m.get_root().html.add_child(folium.Element(hover_script))
         
         return m
     
