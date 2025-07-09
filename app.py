@@ -39,33 +39,52 @@ def process_ics_file(uploaded_file):
         ics_content = uploaded_file.read()
         cal = icalendar.Calendar.from_ical(ics_content)
         
-        # More comprehensive travel keywords
+        # Travel keywords including booking platforms
         travel_keywords = [
+            # Booking platforms (high priority)
+            'airbnb', 'booking.com', 'agoda', 'trip.com', 'hotels.com',
+            'expedia', 'kayak', 'priceline', 'tripadvisor', 'hostelworld',
+            'vrbo', 'trivago', 'marriott', 'hilton', 'hyatt',
+            
+            # Transportation
             'flight', 'flights', 'fly', 'flying', 'airport', 'airline',
+            'train', 'rail', 'railway', 'amtrak', 'eurostar',
+            'bus', 'coach', 'greyhound', 'flixbus',
+            'rental car', 'rent a car', 'car rental', 'hire car',
+            'uber', 'lyft', 'taxi', 'transfer',
+            
+            # Accommodation
             'hotel', 'hotels', 'accommodation', 'motel', 'resort', 'hostel',
-            'airbnb', 'booking.com', 'lodging',
+            'lodge', 'inn', 'suite', 'apartment', 'villa',
+            
+            # Trip related
             'trip', 'travel', 'traveling', 'travelling', 'journey',
             'vacation', 'vacations', 'holiday', 'holidays', 'getaway',
             'visit', 'visiting', 'tour', 'tourist', 'tourism',
             'cruise', 'cruising', 'sailing',
-            'train', 'rail', 'railway', 'amtrak', 'eurostar',
-            'bus', 'coach', 'greyhound',
-            'rental car', 'rent a car', 'car rental', 'hire car',
+            
+            # Check-in/out
             'check-in', 'checkin', 'check in',
             'check-out', 'checkout', 'check out',
             'reservation', 'reservations', 'booked', 'booking',
-            'departure', 'departing', 'arrival', 'arriving',
-            'itinerary', 'boarding pass', 'boarding',
-            'terminal', 'gate', 'baggage', 'luggage',
+            
+            # Travel emojis
             '✈️', '🏨', '🚂', '🚗', '🏖️', '🗺️', '🧳', '🎫', '🏝️', '⛱️'
         ]
         
-        # Exclusion keywords - events that might have travel words but aren't trips
+        # Booking platforms for strong matching
+        booking_platforms = [
+            'airbnb', 'booking.com', 'agoda', 'trip.com', 'hotels.com',
+            'expedia', 'kayak', 'priceline', 'tripadvisor', 'hostelworld',
+            'vrbo', 'trivago'
+        ]
+        
+        # Exclusion keywords
         exclusion_keywords = [
             'meeting', 'call', 'zoom', 'teams', 'virtual',
             'webinar', 'conference call', 'standup', 'stand-up',
             'interview', 'dental', 'doctor', 'appointment',
-            'birthday', 'anniversary', 'party'
+            'birthday', 'anniversary', 'party', 'work', 'office'
         ]
         
         trips = []
@@ -84,14 +103,14 @@ def process_ics_file(uploaded_file):
                     if any(excl in combined_text for excl in exclusion_keywords):
                         continue
                     
-                    # Count how many travel keywords match
+                    # Check if it contains any booking platform - automatic include
+                    has_booking_platform = any(platform in combined_text for platform in booking_platforms)
+                    
+                    # Count travel keywords
                     travel_score = sum(1 for keyword in travel_keywords if keyword in combined_text)
                     
-                    # Only consider it a trip if it has at least 2 travel keywords or strong indicators
-                    strong_indicators = ['flight', 'hotel', 'airbnb', '✈️', '🏨', 'airport', 'check-in', 'check-out']
-                    has_strong_indicator = any(indicator in combined_text for indicator in strong_indicators)
-                    
-                    if travel_score >= 2 or has_strong_indicator:
+                    # Include if: has booking platform OR has 2+ travel keywords
+                    if has_booking_platform or travel_score >= 2:
                         # Parse dates
                         start = component.get('dtstart')
                         end = component.get('dtend')
@@ -115,11 +134,9 @@ def process_ics_file(uploaded_file):
                             elif isinstance(end.dt, date):
                                 end_date = datetime.combine(end.dt, datetime.min.time())
                         
-                        # If we couldn't parse dates, skip this event
                         if start_date is None:
                             continue
                         
-                        # If no end date, use start date
                         if end_date is None:
                             end_date = start_date
                         
@@ -128,24 +145,21 @@ def process_ics_file(uploaded_file):
                             'start_date': start_date,
                             'end_date': end_date,
                             'location': location,
-                            'description': description[:200] if description else '',  # Limit description length
+                            'description': description[:200] if description else '',
                             'destination': extract_destination(summary, location),
-                            'travel_score': travel_score
+                            'travel_score': travel_score,
+                            'has_booking_platform': has_booking_platform
                         }
                         trips.append(trip_data)
                 
                 except Exception as e:
-                    # Skip events that cause errors
                     continue
         
         # Create DataFrame
         if trips:
             df = pd.DataFrame(trips)
-            # Calculate duration
             df['duration_days'] = ((df['end_date'] - df['start_date']).dt.total_seconds() / 86400).round().astype(int) + 1
-            # Sort by start date
             df = df.sort_values('start_date', ascending=False)
-            # Remove duplicates based on title and start date
             df = df.drop_duplicates(subset=['title', 'start_date'])
             return df
         else:
@@ -156,25 +170,20 @@ def process_ics_file(uploaded_file):
         return pd.DataFrame()
 
 def extract_destination(title, location):
-    """Try to extract destination from title and location"""
-    # Clean the inputs
+    """Extract destination from title and location"""
     title = str(title).strip()
     location = str(location).strip()
     
-    # Priority 1: Check location field
+    # Check location field first
     if location and location.lower() not in ['', 'none', 'null']:
-        # Common location patterns
         location_parts = location.split(',')
         if location_parts:
-            # Get the city name (usually first part)
             city = location_parts[0].strip()
-            # Remove common words
             city = re.sub(r'\b(airport|hotel|center|centre|downtown)\b', '', city, flags=re.IGNORECASE).strip()
             if city and len(city) > 2:
                 return city.title()
     
-    # Priority 2: Look for destinations in title
-    # Pattern: "Flight to [Destination]" or "Trip to [Destination]"
+    # Patterns for extracting destination from title
     patterns = [
         r'(?:to|in|at)\s+([A-Z][a-zA-Z\s]+?)(?:\s*[-,:]|\s+on\s+|\s+from\s+|$)',
         r'([A-Z][a-zA-Z\s]+?)\s+(?:trip|vacation|holiday|flight|hotel)',
@@ -185,22 +194,15 @@ def extract_destination(title, location):
         match = re.search(pattern, title)
         if match:
             destination = match.group(1).strip()
-            # Remove common words that aren't destinations
             if destination.lower() not in ['the', 'hotel', 'flight', 'trip', 'vacation']:
                 return destination
     
-    # Priority 3: Extract proper nouns from title
+    # Extract proper nouns
     words = title.split()
-    proper_nouns = []
-    for i, word in enumerate(words):
+    for word in words:
         if word and word[0].isupper() and len(word) > 2:
-            # Skip common travel words
             if word.lower() not in ['flight', 'hotel', 'trip', 'vacation', 'holiday', 'the', 'rental', 'car']:
-                proper_nouns.append(word)
-    
-    if proper_nouns:
-        # Return the first proper noun that looks like a place
-        return proper_nouns[0]
+                return word
     
     return "Unknown"
 
@@ -211,5 +213,143 @@ def create_timeline_chart(df):
         fig.add_annotation(text="No trip data available", x=0.5, y=0.5, showarrow=False)
         return fig
     
-    # Sort by start date descending (most recent first)
-    df_sorted = df.sort_values('start_date', ascending=False).
+    # Sort by start date descending
+    df_sorted = df.sort_values('start_date', ascending=False).head(20)  # Show last 20 trips
+    
+    fig = go.Figure()
+    
+    # Create timeline bars
+    for idx, row in df_sorted.iterrows():
+        fig.add_trace(go.Scatter(
+            x=[row['start_date'], row['end_date']],
+            y=[row['destination'], row['destination']],
+            mode='lines',
+            line=dict(width=20, color='#3498db'),
+            name=row['destination'],
+            showlegend=False,
+            hovertemplate=(
+                f"<b>{row['title']}</b><br>" +
+                f"Destination: {row['destination']}<br>" +
+                f"Start: {row['start_date'].strftime('%Y-%m-%d')}<br>" +
+                f"End: {row['end_date'].strftime('%Y-%m-%d')}<br>" +
+                f"Duration: {row['duration_days']} days<br>" +
+                "<extra></extra>"
+            )
+        ))
+    
+    fig.update_layout(
+        title="Trip Timeline (Recent 20 Trips)",
+        xaxis_title="Date",
+        yaxis_title="Destination",
+        height=500,
+        hovermode='closest'
+    )
+    
+    return fig
+
+def create_destination_chart(df):
+    """Create a bar chart of destinations"""
+    if df.empty:
+        return go.Figure().add_annotation(text="No trip data available")
+    
+    destination_counts = df['destination'].value_counts().head(10)
+    
+    fig = px.bar(
+        x=destination_counts.values,
+        y=destination_counts.index,
+        orientation='h',
+        title="Top 10 Destinations",
+        labels={'x': 'Number of Visits', 'y': 'Destination'},
+        color=destination_counts.values,
+        color_continuous_scale='Blues'
+    )
+    
+    fig.update_layout(height=400, showlegend=False)
+    return fig
+
+def create_monthly_chart(df):
+    """Create a chart showing trips by month"""
+    if df.empty:
+        return go.Figure().add_annotation(text="No trip data available")
+    
+    # Get last 12 months of data
+    cutoff_date = datetime.now() - timedelta(days=365)
+    recent_df = df[df['start_date'] >= cutoff_date]
+    
+    if recent_df.empty:
+        recent_df = df.head(20)  # Fall back to last 20 trips
+    
+    recent_df['year_month'] = recent_df['start_date'].dt.strftime('%Y-%m')
+    monthly_trips = recent_df.groupby('year_month').size().reset_index(name='count')
+    monthly_trips = monthly_trips.sort_values('year_month')
+    
+    fig = px.bar(
+        monthly_trips,
+        x='year_month',
+        y='count',
+        title="Trips by Month (Last 12 Months)",
+        labels={'count': 'Number of Trips', 'year_month': 'Month'},
+        color='count',
+        color_continuous_scale='Viridis'
+    )
+    
+    fig.update_layout(height=400, showlegend=False)
+    return fig
+
+def main():
+    st.title("🗺️ My Travel Dashboard")
+    st.markdown("---")
+    
+    # Instructions
+    with st.expander("📖 How to use this app"):
+        st.markdown("""
+        1. **Export your Apple Calendar:**
+           - Open Calendar app on your Mac
+           - Select the calendar(s) with your trips
+           - Go to File → Export → Export...
+           - Save as .ics file
+        
+        2. **Upload the file below**
+        
+        3. **View your travel insights!**
+        
+        The app detects travel events by looking for:
+        - Booking platforms (Airbnb, Booking.com, Agoda, Trip.com, etc.)
+        - Travel keywords (flight, hotel, trip, vacation, etc.)
+        - Travel emojis (✈️, 🏨, etc.)
+        """)
+    
+    # File upload
+    uploaded_file = st.file_uploader(
+        "Upload your calendar export (.ics file)", 
+        type=['ics'],
+        help="Export your calendar from Apple Calendar as an .ics file"
+    )
+    
+    if uploaded_file is not None:
+        # Process the file
+        with st.spinner("Processing your calendar data..."):
+            df = process_ics_file(uploaded_file)
+        
+        if df.empty:
+            st.warning("No travel-related events found. Make sure your trips contain booking platform names (Airbnb, Booking.com, etc.) or travel keywords.")
+            return
+        
+        # Metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown("📊 **Total Trips**")
+            st.markdown(f'<div class="metric-value" style="color: #1f77b4;">{len(df)}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown("✈️ **Unique Destinations**")
+            st.markdown(f'<div class="metric-value" style="color: #2ca02c;">{df["destination"].nunique()}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown("📅 **Total
