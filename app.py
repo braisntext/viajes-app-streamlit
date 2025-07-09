@@ -361,7 +361,7 @@ def main():
             if not future_trips.empty:
                 next_trip = future_trips.iloc[0]
                 days_until = (next_trip['start_date'] - datetime.now()).days
-                                next_trip_text = f"{next_trip['destination']}<br>in {days_until} days"
+                next_trip_text = f"{next_trip['destination']}<br>in {days_until} days"
             else:
                 next_trip_text = "No upcoming trips"
             
