@@ -1,6 +1,6 @@
 import pickle
 import hashlib
-from trip_map import render_trip_map
+from trip_map_optimized import render_trip_map_fast
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -421,7 +421,7 @@ def main():
             
         # Add interactive map
         st.markdown("---")
-        render_trip_map(df)
+        render_trip_map_fast(df)
         
         # Trip details section continues below...
         st.markdown("---")
