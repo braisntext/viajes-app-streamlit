@@ -1,3 +1,4 @@
+from trip_map import render_trip_map
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -398,6 +399,13 @@ def main():
         
         with col2:
             st.plotly_chart(create_monthly_chart(df), use_container_width=True)
+            
+        # Add interactive map
+        st.markdown("---")
+        render_trip_map(df)
+        
+        # Trip details section continues below...
+        st.markdown("---")
         
         # Trip details
         st.markdown("---")
