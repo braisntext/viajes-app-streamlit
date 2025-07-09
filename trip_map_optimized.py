@@ -166,6 +166,49 @@ def render_trip_map_fast(df):
     """Render optimized trip map"""
     st.subheader("🗺️ Trip Map (Fast View)")
     
+    # Filter buttons
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        show_past = st.button("📅 Show Past Trips", key="show_past", type="secondary")
+    with col2:
+        show_current_future = st.button("🔄 Current & Future", key="show_current_future", type="primary")
+    with col3:
+        show_all = st.button("🌍 Show All Trips", key="show_all", type="secondary")
+    
+    # Initialize session state for filter
+    if 'map_filter' not in st.session_state:
+        st.session_state.map_filter = 'current_future'
+    
+    # Update filter based on button clicks
+    if show_past:
+        st.session_state.map_filter = 'past'
+    elif show_current_future:
+        st.session_state.map_filter = 'current_future'
+    elif show_all:
+        st.session_state.map_filter = 'all'
+    
+    # Filter the dataframe based on selection
+    current_date = datetime.now().replace(tzinfo=None)
+    
+    if st.session_state.map_filter == 'past':
+        filtered_df = df[df['end_date'] < current_date].copy()
+        filter_info = f"Showing {len(filtered_df)} past trips"
+    elif st.session_state.map_filter == 'current_future':
+        filtered_df = df[df['end_date'] >= current_date].copy()
+        filter_info = f"Showing {len(filtered_df)} current and future trips"
+    else:  # all
+        filtered_df = df.copy()
+        filter_info = f"Showing all {len(filtered_df)} trips"
+    
+    # Show filter info
+    st.info(f"🔍 {filter_info}")
+    
+    # Check if there are trips to show
+    if filtered_df.empty:
+        st.warning("No trips found for the selected filter.")
+        return
+    
     # Add a toggle for full features
     use_full_map = st.checkbox("Enable hover connections (slower)", value=False)
     
@@ -177,7 +220,7 @@ def render_trip_map_fast(df):
         # Use the optimized version
         with st.spinner("Creating map..."):
             trip_map = OptimizedTripMap()
-            m = trip_map.create_map_fast(df)
+            m = trip_map.create_map_fast(filtered_df)  # Use filtered dataframe
             
             if m:
                 st_folium(
