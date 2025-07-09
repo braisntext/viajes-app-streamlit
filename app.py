@@ -352,4 +352,184 @@ def main():
         
         with col3:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.markdown("📅 **Total
+            st.markdown("📅 **Total Travel Days**")
+            st.markdown(f'<div class="metric-value" style="color: #ff7f0e;">{df["duration_days"].sum()}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col4:
+            future_trips = df[df['start_date'] > datetime.now()]
+            if not future_trips.empty:
+                next_trip = future_trips.iloc[0]
+                days_until = (next_trip['start_date'] - datetime.now()).days
+                                next_trip_text = f"{next_trip['destination']}<br>in {days_until} days"
+            else:
+                next_trip_text = "No upcoming trips"
+            
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown("🌍 **Next Trip**")
+            st.markdown(f'<div class="metric-value" style="color: #d62728; font-size: 1.5em;">{next_trip_text}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Visualizations
+        st.markdown("---")
+        
+        # Timeline
+        st.plotly_chart(create_timeline_chart(df), use_container_width=True)
+        
+        # Two columns for charts
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.plotly_chart(create_destination_chart(df), use_container_width=True)
+        
+        with col2:
+            st.plotly_chart(create_monthly_chart(df), use_container_width=True)
+        
+        # Trip details
+        st.markdown("---")
+        st.subheader("📋 Trip Details")
+        
+        # Add filter options
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Filter by destination
+            destinations = ['All'] + sorted(df['destination'].unique().tolist())
+            selected_destination = st.selectbox('Filter by Destination', destinations)
+        
+        with col2:
+            # Filter by year
+            df['year'] = df['start_date'].dt.year
+            years = ['All'] + sorted(df['year'].unique().tolist(), reverse=True)
+            selected_year = st.selectbox('Filter by Year', years)
+        
+        with col3:
+            # Sort order
+            sort_order = st.selectbox('Sort by', ['Most Recent', 'Oldest First', 'Longest Duration', 'Destination A-Z'])
+        
+        # Apply filters
+        filtered_df = df.copy()
+        
+        if selected_destination != 'All':
+            filtered_df = filtered_df[filtered_df['destination'] == selected_destination]
+        
+        if selected_year != 'All':
+            filtered_df = filtered_df[filtered_df['year'] == selected_year]
+        
+        # Apply sorting
+        if sort_order == 'Most Recent':
+            filtered_df = filtered_df.sort_values('start_date', ascending=False)
+        elif sort_order == 'Oldest First':
+            filtered_df = filtered_df.sort_values('start_date', ascending=True)
+        elif sort_order == 'Longest Duration':
+            filtered_df = filtered_df.sort_values('duration_days', ascending=False)
+        else:  # Destination A-Z
+            filtered_df = filtered_df.sort_values('destination', ascending=True)
+        
+        # Format the dataframe for display
+        display_df = filtered_df[['title', 'destination', 'start_date', 'end_date', 'duration_days']].copy()
+        display_df['start_date'] = display_df['start_date'].dt.strftime('%Y-%m-%d')
+        display_df['end_date'] = display_df['end_date'].dt.strftime('%Y-%m-%d')
+        display_df.columns = ['Trip', 'Destination', 'Start Date', 'End Date', 'Days']
+        
+        # Show filtered results count
+        st.info(f"Showing {len(display_df)} trips")
+        
+        # Display the dataframe
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Download options
+        st.markdown("---")
+        st.subheader("📥 Download Your Data")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Download filtered data as CSV
+            csv = display_df.to_csv(index=False)
+            st.download_button(
+                label="Download Filtered Trips (CSV)",
+                data=csv,
+                file_name=f"my_trips_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+        
+        with col2:
+            # Download summary statistics
+            summary_data = {
+                'Metric': ['Total Trips', 'Unique Destinations', 'Total Travel Days', 'Average Trip Duration', 'Most Visited Destination'],
+                'Value': [
+                    len(df),
+                    df['destination'].nunique(),
+                    df['duration_days'].sum(),
+                    f"{df['duration_days'].mean():.1f} days",
+                    f"{df['destination'].value_counts().index[0]} ({df['destination'].value_counts().iloc[0]} times)"
+                ]
+            }
+            summary_df = pd.DataFrame(summary_data)
+            summary_csv = summary_df.to_csv(index=False)
+            
+            st.download_button(
+                label="Download Summary Statistics (CSV)",
+                data=summary_csv,
+                file_name=f"trip_summary_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+    
+    else:
+        # Show demo/placeholder when no file is uploaded
+        st.info("👆 Upload your calendar .ics file to get started!")
+        
+        # Show sample visualization with dummy data
+        st.subheader("Sample Visualization")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            sample_destinations = pd.DataFrame({
+                'destination': ['Paris', 'Tokyo', 'New York', 'London', 'Barcelona'],
+                'trips': [3, 2, 4, 2, 1]
+            })
+            fig = px.bar(
+                sample_destinations, 
+                x='trips', 
+                y='destination', 
+                orientation='h',
+                title="Sample: Top Destinations", 
+                color='trips',
+                color_continuous_scale='Blues'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            sample_monthly = pd.DataFrame({
+                'month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                'trips': [1, 0, 2, 1, 3, 2]
+            })
+            fig = px.bar(
+                sample_monthly,
+                x='month',
+                y='trips',
+                title="Sample: Monthly Travel Frequency",
+                color='trips',
+                color_continuous_scale='Viridis'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Add helpful tips
+        st.markdown("---")
+        st.subheader("💡 Tips for Better Results")
+        st.markdown("""
+        - **Add booking platform names** to your calendar events (e.g., "Airbnb: Beach House Miami")
+        - **Include location information** in the location field of your events
+        - **Use travel-related keywords** in event titles (flight, hotel, trip, etc.)
+        - **Add travel emojis** to make detection easier (✈️, 🏨, 🏖️)
+        - **Be consistent** with destination names for better grouping
+        """)
+
+if __name__ == "__main__":
+    main()
