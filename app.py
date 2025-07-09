@@ -1,3 +1,5 @@
+import pickle
+import hashlib
 from trip_map import render_trip_map
 import streamlit as st
 import pandas as pd
@@ -32,12 +34,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data
-def process_ics_file(uploaded_file):
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def get_file_hash(file_content):
+    """Generate hash of file content"""
+    return hashlib.md5(file_content).hexdigest()
+
+@st.cache_data(persist="disk", ttl=86400)  # Cache for 24 hours
+def process_ics_file(file_hash, file_content):
     """Process ICS file and extract trip-related events"""
+    # Check if we have cached data
+    if 'cached_trips' in st.session_state:
+        cached_df = st.session_state['cached_trips']
+        # Get the latest date from cached data
+        if not cached_df.empty:
+            last_date = cached_df['start_date'].max()
+            st.info(f"Using cached data. Adding only new trips after {last_date.strftime('%Y-%m-%d')}")
     try:
         # Read the ICS file
-        ics_content = uploaded_file.read()
+        ics_content = file_content
         cal = icalendar.Calendar.from_ical(ics_content)
         
         # Travel keywords including booking platforms
@@ -343,7 +357,12 @@ def main():
     if uploaded_file is not None:
         # Process the file
         with st.spinner("Processing your calendar data..."):
-            df = process_ics_file(uploaded_file)
+            file_content = uploaded_file.read()
+            file_hash = get_file_hash(file_content)
+            df = process_ics_file(file_hash, file_content)
+            
+            # Store in session state for future use
+            st.session_state['cached_trips'] = df
         
         if df.empty:
             st.warning("No travel-related events found. Make sure your trips contain booking platform names (Airbnb, Booking.com, etc.) or travel keywords.")
