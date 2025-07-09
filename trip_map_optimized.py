@@ -87,11 +87,21 @@ class OptimizedTripMap:
         all_coords = df['coordinates'].tolist()
         center_lat = sum(coord[0] for coord in all_coords) / len(all_coords)
         center_lon = sum(coord[1] for coord in all_coords) / len(all_coords)
+
+        # Adjust zoom based on number of trips
+        if len(df) == 1:
+            zoom_level = 10
+        elif len(df) < 5:
+            zoom_level = 6
+        elif len(df) < 10:
+            zoom_level = 4
+        else:
+            zoom_level = 3
         
         # Create map
         m = folium.Map(
             location=[center_lat, center_lon],
-            zoom_start=3,
+            zoom_start=zoom_level,  # Use dynamic zoom instead of fixed 3
             tiles='CartoDB positron',
             prefer_canvas=True  # Faster rendering
         )
