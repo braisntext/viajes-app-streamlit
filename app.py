@@ -110,7 +110,10 @@ def process_ics_file(uploaded_file):
                     travel_score = sum(1 for keyword in travel_keywords if keyword in combined_text)
                     
                     # Include if: has booking platform OR has 2+ travel keywords
-                    if has_booking_platform or travel_score >= 2:
+                    if has_booking_platform or travel_score >= 1:
+                        # Debug: Show what's being detected
+                        if has_booking_platform:
+                            st.success(f"Found booking platform in: {summary[:50]}...")
                         # Parse dates
                         start = component.get('dtstart')
                         end = component.get('dtend')
@@ -158,7 +161,13 @@ def process_ics_file(uploaded_file):
         # Create DataFrame
         if trips:
             df = pd.DataFrame(trips)
-            df['duration_days'] = ((df['end_date'] - df['start_date']).dt.total_seconds() / 86400).round().astype(int) + 1
+            # Calculate duration without using .dt accessor
+            df['duration_days'] = df.apply(
+                lambda row: ((row['end_date'] - row['start_date']).total_seconds() / 86400) + 1 
+                if pd.notna(row['end_date']) and pd.notna(row['start_date']) 
+                else 1, 
+                axis=1
+            ).round().astype(int)
             df = df.sort_values('start_date', ascending=False)
             df = df.drop_duplicates(subset=['title', 'start_date'])
             return df
