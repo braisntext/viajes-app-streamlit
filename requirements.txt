@@ -2,3 +2,6 @@ streamlit
 pandas
 plotly
 icalendar
+folium
+streamlit-folium
+geopy
