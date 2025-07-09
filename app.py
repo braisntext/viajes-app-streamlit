@@ -111,9 +111,7 @@ def process_ics_file(uploaded_file):
                     
                     # Include if: has booking platform OR has 2+ travel keywords
                     if has_booking_platform or travel_score >= 1:
-                        # Debug: Show what's being detected
-                        if has_booking_platform:
-                            st.success(f"Found booking platform in: {summary[:50]}...")
+
                         # Parse dates
                         start = component.get('dtstart')
                         end = component.get('dtend')
@@ -128,12 +126,18 @@ def process_ics_file(uploaded_file):
                         if hasattr(start, 'dt'):
                             if isinstance(start.dt, datetime):
                                 start_date = start.dt
+                                # Remove timezone info to avoid comparison issues
+                                if start_date.tzinfo is not None:
+                                    start_date = start_date.replace(tzinfo=None)
                             elif isinstance(start.dt, date):
                                 start_date = datetime.combine(start.dt, datetime.min.time())
                         
                         if end and hasattr(end, 'dt'):
                             if isinstance(end.dt, datetime):
                                 end_date = end.dt
+                                # Remove timezone info to avoid comparison issues
+                                if end_date.tzinfo is not None:
+                                    end_date = end_date.replace(tzinfo=None)
                             elif isinstance(end.dt, date):
                                 end_date = datetime.combine(end.dt, datetime.min.time())
                         
@@ -282,7 +286,7 @@ def create_monthly_chart(df):
         return go.Figure().add_annotation(text="No trip data available")
     
     # Get last 12 months of data
-    cutoff_date = datetime.now() - timedelta(days=365)
+    cutoff_date = datetime.now().replace(tzinfo=None) - timedelta(days=365)
     recent_df = df[df['start_date'] >= cutoff_date]
     
     if recent_df.empty:
@@ -366,7 +370,8 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col4:
-            future_trips = df[df['start_date'] > datetime.now()]
+            current_date = datetime.now().replace(tzinfo=None)
+            future_trips = df[df['start_date'] > current_date]
             if not future_trips.empty:
                 next_trip = future_trips.iloc[0]
                 days_until = (next_trip['start_date'] - datetime.now()).days
