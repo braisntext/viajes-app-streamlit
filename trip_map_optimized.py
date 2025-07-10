@@ -146,7 +146,25 @@ class OptimizedTripMap:
         # Add status and coordinates
         df = df.copy()
         df['status'] = df.apply(lambda row: self._get_status(row, current_date), axis=1)
-        df['coordinates'] = df['destination'].apply(self.get_coordinates_fast)
+        df['coordinates'] = df.apply(
+            lambda row: self.get_coordinates_fast(row['destination'], row.get('location', '')), 
+            axis=1
+        )
+
+                # Filter out entries without coordinates
+        df_with_coords = df[df['coordinates'].notna()].copy()
+        
+        if df_with_coords.empty:
+            st.warning("Could not determine coordinates for any destinations.")
+            return None
+        
+        # Show warning for missing coordinates
+        missing_coords = df[df['coordinates'].isna()]
+        if not missing_coords.empty:
+            st.warning(f"⚠️ Could not determine location for {len(missing_coords)} trips: {', '.join(missing_coords['destination'].head(5).tolist())}")
+        
+        # Use only trips with coordinates
+        df = df_with_coords
         
         # Calculate center
         all_coords = df['coordinates'].tolist()
@@ -250,6 +268,26 @@ def render_trip_map_fast(df):
         show_current_future = st.button("🔄 Current & Future", key="show_current_future", type="primary")
     with col3:
         show_all = st.button("🌍 Show All Trips", key="show_all", type="secondary")
+    with col4:
+        if st.button("📍 Fix Locations", key="fix_locations"):
+            with st.expander("Override coordinates for misplaced locations"):
+                st.markdown("""
+                Add Google Maps links to your calendar events' location field for accurate placement.
+                
+                For past events without links, you can manually set coordinates here:
+                """)
+                
+                # Show destinations that might need fixing
+                problem_destinations = filtered_df[['destination']].drop_duplicates()
+                
+                for dest in problem_destinations['destination'].head(10):
+                    col_a, col_b, col_c = st.columns([2, 1, 1])
+                    with col_a:
+                        st.text(dest)
+                    with col_b:
+                        lat = st.number_input(f"Lat", key=f"lat_{dest}", value=0.0, format="%.4f", label_visibility="collapsed")
+                    with col_c:
+                        lon = st.number_input(f"Lon", key=f"lon_{dest}", value=0.0, format="%.4f", label_visibility="collapsed")
     
     # Initialize session state for filter
     if 'map_filter' not in st.session_state:
