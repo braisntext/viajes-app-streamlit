@@ -43,8 +43,50 @@ class OptimizedTripMap:
             "Boston": [42.3601, -71.0589],
         }
     
-    def get_coordinates_fast(self, destination):
-        """Get coordinates using cache first, then simple approximation"""
+    def get_coordinates_fast(self, destination, location_field=''):
+        """Get coordinates using URLs first, then cache, then approximation"""
+        
+        # First, try to extract from Google Maps or Trip.com URLs in location field
+        if location_field:
+            # Google Maps patterns
+            import re
+            
+            # Pattern for Google Maps URLs with coordinates
+            google_patterns = [
+                r'@([-\d.]+),([-\d.]+)',  # @lat,lng format
+                r'll=([-\d.]+),([-\d.]+)',  # ll=lat,lng format
+                r'q=([-\d.]+),([-\d.]+)',  # q=lat,lng format
+            ]
+            
+            for pattern in google_patterns:
+                match = re.search(pattern, location_field)
+                if match:
+                    try:
+                        lat = float(match.group(1))
+                        lon = float(match.group(2))
+                        # Save to cache for future use
+                        self.coordinates_cache[destination] = [lat, lon]
+                        return [lat, lon]
+                    except:
+                        pass
+            
+            # Trip.com coordinates pattern (if they use a specific format)
+            trip_patterns = [
+                r'latitude["\']?\s*:\s*([-\d.]+).*longitude["\']?\s*:\s*([-\d.]+)',
+                r'lat["\']?\s*:\s*([-\d.]+).*lng["\']?\s*:\s*([-\d.]+)',
+            ]
+            
+            for pattern in trip_patterns:
+                match = re.search(pattern, location_field, re.IGNORECASE | re.DOTALL)
+                if match:
+                    try:
+                        lat = float(match.group(1))
+                        lon = float(match.group(2))
+                        self.coordinates_cache[destination] = [lat, lon]
+                        return [lat, lon]
+                    except:
+                        pass
+        
         # Clean destination name
         dest_clean = destination.strip().title()
         
@@ -52,23 +94,46 @@ class OptimizedTripMap:
         if dest_clean in self.coordinates_cache:
             return self.coordinates_cache[dest_clean]
         
-        # Check partial matches
+        # For Japanese destinations, add specific handling
+        japan_cities = {
+            "Matsubaya": [34.6937, 135.5023],  # Osaka
+            "Osaka": [34.6937, 135.5023],
+            "Kyoto": [35.0116, 135.7681],
+            "Tokyo": [35.6762, 139.6503],
+            "Hiroshima": [34.3853, 132.4553],
+            "Nagasaki": [32.7503, 129.8777],
+            "Fukuoka": [33.5904, 130.4017],
+            "Sapporo": [43.0642, 141.3469],
+            "Nara": [34.6851, 135.8048],
+            "Yokohama": [35.4437, 139.6380],
+        }
+        
+        # Check Japanese cities
+        for city, coords in japan_cities.items():
+            if city.lower() in destination.lower():
+                return coords
+        
+        # Check partial matches in main cache
         for cached_dest, coords in self.coordinates_cache.items():
             if cached_dest.lower() in dest_clean.lower() or dest_clean.lower() in cached_dest.lower():
                 return coords
         
-        # If not in cache, use a simple approximation based on continent
-        # This is faster than geocoding but less accurate
-        # You can expand this logic based on your travel patterns
-        if any(country in destination.lower() for country in ['usa', 'united states', 'america']):
-            return [39.8283, -98.5795]  # Center of USA
-        elif any(country in destination.lower() for country in ['uk', 'england', 'britain']):
-            return [54.0000, -2.0000]  # Center of UK
-        elif any(country in destination.lower() for country in ['spain', 'españa']):
-            return [40.4637, -3.7492]  # Center of Spain
+        # If destination contains "Ryokan" or Japanese-style names, default to Japan center
+        if any(word in destination.lower() for word in ['ryokan', 'onsen', 'shrine', 'temple']):
+            return [36.2048, 138.2529]  # Center of Japan
         
-        # Default to a central location
-        return [48.8566, 2.3522]  # Paris as default
+        # Original fallback logic
+        if any(country in destination.lower() for country in ['usa', 'united states', 'america']):
+            return [39.8283, -98.5795]
+        elif any(country in destination.lower() for country in ['uk', 'england', 'britain']):
+            return [54.0000, -2.0000]
+        elif any(country in destination.lower() for country in ['spain', 'españa']):
+            return [40.4637, -3.7492]
+        elif any(country in destination.lower() for country in ['japan', '日本']):
+            return [36.2048, 138.2529]
+        
+        # Default to asking user or showing unknown
+        return None  # Will handle this in create_map_fast
     
     def create_map_fast(self, df):
         """Create map without geocoding delays"""
