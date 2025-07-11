@@ -89,7 +89,7 @@ class TripMap:
                 <h4>{row['destination']}</h4>
                 <p><b>{row['title']}</b></p>
                 <p>📅 {row['start_date'].strftime('%Y-%m-%d')} to {row['end_date'].strftime('%Y-%m-%d')}</p>
-                <p>⏱️ {row['duration_days']} days</p>
+                <p>🛏️ {row['duration_days']} night{'s' if row['duration_days'] != 1 else ''}</p>
                 <p><a href='https://www.google.com/maps/search/{row['destination']}' target='_blank'>Open in Google Maps 🗺️</a></p>
             </div>
             """
