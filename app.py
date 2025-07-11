@@ -188,13 +188,13 @@ def process_ics_file(file_hash, file_content):
         # Create DataFrame
         if trips:
             df = pd.DataFrame(trips)
-            # Calculate duration without using .dt accessor
+            # Calculate duration (nights for hotels)
             df['duration_days'] = df.apply(
-                lambda row: ((row['end_date'] - row['start_date']).total_seconds() / 86400) + 1 
+                lambda row: max(1, int((row['end_date'] - row['start_date']).total_seconds() / 86400))
                 if pd.notna(row['end_date']) and pd.notna(row['start_date']) 
                 else 1, 
                 axis=1
-            ).round().astype(int)
+            )
             df = df.sort_values('start_date', ascending=False)
             df = df.drop_duplicates(subset=['title', 'start_date'])
             return df
@@ -393,7 +393,7 @@ def main():
         
         with col3:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.markdown("📅 **Total Travel Days**")
+            st.markdown("📅 **Total Nights**")
             st.markdown(f'<div class="metric-value" style="color: #ff7f0e;">{df["duration_days"].sum()}</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
         
@@ -479,7 +479,7 @@ def main():
         display_df = filtered_df[['title', 'destination', 'start_date', 'end_date', 'duration_days']].copy()
         display_df['start_date'] = display_df['start_date'].dt.strftime('%Y-%m-%d')
         display_df['end_date'] = display_df['end_date'].dt.strftime('%Y-%m-%d')
-        display_df.columns = ['Trip', 'Destination', 'Start Date', 'End Date', 'Days']
+        display_df.columns = ['Trip', 'Destination', 'Start Date', 'End Date', 'Nights']
         
         # Show filtered results count
         st.info(f"Showing {len(display_df)} trips")
