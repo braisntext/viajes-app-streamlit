@@ -41,6 +41,19 @@ class OptimizedTripMap:
             "San Francisco": [37.7749, -122.4194],
             "Chicago": [41.8781, -87.6298],
             "Boston": [42.3601, -71.0589],
+            # Japanese cities and areas
+            "Fukuoka": [33.5904, 130.4017],
+            "Yanagawa": [33.1633, 130.4056],
+            "Hiroshima": [34.3853, 132.4553],
+            "Miyajima": [34.2956, 132.3195],
+            "Nishifujinomoricho": [34.9877, 135.7529],  # Kyoto area
+            "Murasakino": [35.0377, 135.7529],  # Kyoto area
+            "Shinosaka": [34.7338, 135.5004],  # Osaka area
+            "Nishiwajir": [35.6762, 139.6503],  # Tokyo area
+            "Beppu": [33.2846, 131.4910],
+            "Daiiti": [33.2396, 131.6093],  # Beppu area
+            "Noreply": [35.6762, 139.6503],  # Default to Tokyo
+            "East 21 Tokyo": [35.6762, 139.6503],
         }
     
     def get_coordinates_fast(self, destination, location_field=''):
