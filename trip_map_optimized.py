@@ -207,6 +207,7 @@ class OptimizedTripMap:
             <div style='width: 180px;'>
                 <b>{row['destination']}</b><br>
                 {row['start_date'].strftime('%b %d, %Y')}<br>
+                🛏️ {row['duration_days']} night{'s' if row['duration_days'] != 1 else ''}<br>
                 <a href='https://www.google.com/maps/search/{row['destination']}' target='_blank'>Open in Maps</a>
             </div>
             """
