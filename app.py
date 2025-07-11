@@ -171,7 +171,8 @@ def process_ics_file(file_hash, file_content):
                             end_date = start_date
                         
                         trip_data = {
-                            'title': summary,
+                            'title': clean_trip_title(summary),
+                            'original_title': summary,  # Keep original for reference
                             'start_date': start_date,
                             'end_date': end_date,
                             'location': location,
@@ -273,6 +274,43 @@ def extract_destination(title, location):
                 return destination
     
     return "Unknown"
+
+def clean_trip_title(title):
+    """Clean up trip titles for better display"""
+    import re
+    
+    title = str(title).strip()
+    
+    # If it's a URL, return a generic name
+    if title.startswith(('http://', 'https://', 'Http://', 'Https://')):
+        if 'trip.com' in title.lower():
+            return "Trip.com Booking"
+        elif 'booking.com' in title.lower():
+            return "Booking.com Reservation"
+        elif 'airbnb' in title.lower():
+            return "Airbnb Stay"
+        elif 'google.com/maps' in title.lower():
+            return "Location"
+        return "Hotel Booking"
+    
+    # Clean up long titles
+    # Remove URLs from within titles
+    title = re.sub(r'https?://[^\s]+', '', title, flags=re.IGNORECASE).strip()
+    
+    # Remove excessive whitespace
+    title = ' '.join(title.split())
+    
+    # Truncate very long titles
+    if len(title) > 50:
+        # Try to cut at a natural break
+        for sep in [' - ', ', ', ' (', '  ']:
+            if sep in title[:50]:
+                title = title.split(sep)[0]
+                break
+        else:
+            title = title[:47] + '...'
+    
+    return title
 
 def create_timeline_chart(df):
     """Create a timeline visualization of trips"""
