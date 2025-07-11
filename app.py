@@ -275,6 +275,19 @@ def extract_destination(title, location):
     
     return "Unknown"
 
+    # Last resort: try to extract city from the original title
+    city = extract_city_from_text(title)
+    if city:
+        return city
+    
+    # Also try the location field
+    if location:
+        city = extract_city_from_text(location)
+        if city:
+            return city
+    
+    return "Unknown"
+
 def clean_trip_title(title):
     """Clean up trip titles for better display"""
     import re
@@ -311,6 +324,49 @@ def clean_trip_title(title):
             title = title[:47] + '...'
     
     return title
+
+def extract_city_from_text(text):
+    """Extract city name from hotel title or description"""
+    import re
+    
+    text = str(text).lower()
+    
+    # Common city indicators in hotel names
+    city_patterns = [
+        # Japanese cities often appear before -shi, -ku, -cho
+        r'([a-z]+)[\s\-]?(?:shi|city|ku|cho|ward)',
+        # City names often appear after "in", "at", "near"
+        r'(?:in|at|near)\s+([a-z]+)',
+        # Cities in addresses (before state/country)
+        r',\s*([a-z]+)\s*(?:prefecture|japan|korea|thailand)',
+        # Common format: "Hotel Name City"
+        r'(?:hotel|hostel|inn|house|club)\s+([a-z]+)',
+    ]
+    
+    # Known cities to look for
+    known_cities = {
+        'tokyo', 'osaka', 'kyoto', 'fukuoka', 'hiroshima', 'nagoya', 
+        'yokohama', 'kobe', 'sapporo', 'sendai', 'nara', 'kamakura',
+        'yanagawa', 'beppu', 'miyajima', 'shinosaka', 'nishiwaji',
+        'bangkok', 'seoul', 'singapore', 'hong kong', 'taipei',
+        'paris', 'london', 'barcelona', 'madrid', 'rome', 'berlin',
+        'new york', 'los angeles', 'miami', 'chicago', 'boston'
+    }
+    
+    # First, check for known cities
+    for city in known_cities:
+        if city in text:
+            return city.title()
+    
+    # Then try patterns
+    for pattern in city_patterns:
+        match = re.search(pattern, text)
+        if match:
+            city = match.group(1)
+            if len(city) > 2:  # Avoid short matches
+                return city.title()
+    
+    return None
 
 def create_timeline_chart(df):
     """Create a timeline visualization of trips"""
