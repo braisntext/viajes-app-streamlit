@@ -196,7 +196,8 @@ def process_ics_file(file_hash, file_content):
                 else 1, 
                 axis=1
             )
-            df = df.sort_values('start_date', ascending=False)
+            # Don't sort here, we'll sort contextually later
+            # df = df.sort_values('start_date', ascending=False)
             df = df.drop_duplicates(subset=['title', 'start_date'])
             return df
         else:
@@ -375,8 +376,8 @@ def create_timeline_chart(df):
         fig.add_annotation(text="No trip data available", x=0.5, y=0.5, showarrow=False)
         return fig
     
-    # Sort by start date descending
-    df_sorted = df.sort_values('start_date', ascending=False).head(20)  # Show last 20 trips
+    # Use smart sorting to show most relevant trips
+    df_sorted = smart_sort_trips(df).head(20)  # Show 20 most relevant trips
     
     fig = go.Figure()
     
@@ -457,6 +458,33 @@ def create_monthly_chart(df):
     
     fig.update_layout(height=400, showlegend=False)
     return fig
+
+def smart_sort_trips(df):
+    """Sort trips intelligently: upcoming trips first, then recent past trips"""
+    current_date = datetime.now().replace(tzinfo=None)
+    
+    # Separate trips into categories
+    df = df.copy()
+    df['trip_status'] = df.apply(lambda row: 
+        'current' if row['start_date'] <= current_date <= row['end_date']
+        else 'future' if row['start_date'] > current_date
+        else 'past', axis=1)
+    
+    # Calculate days from today
+    df['days_from_today'] = (df['start_date'] - current_date).dt.days
+    
+    # Sort each category
+    current_trips = df[df['trip_status'] == 'current'].sort_values('start_date')
+    future_trips = df[df['trip_status'] == 'future'].sort_values('start_date')  # Ascending - next trip first
+    past_trips = df[df['trip_status'] == 'past'].sort_values('start_date', ascending=False)  # Recent past first
+    
+    # Combine in order: current, future, past
+    sorted_df = pd.concat([current_trips, future_trips, past_trips])
+    
+    # Clean up helper columns
+    sorted_df = sorted_df.drop(['trip_status', 'days_from_today'], axis=1)
+    
+    return sorted_df
 
 def main():
     st.title("🗺️ My Travel Dashboard")
@@ -563,6 +591,9 @@ def main():
         # Trip details
         st.markdown("---")
         st.subheader("📋 Trip Details")
+
+        # Apply smart sorting by default
+        df = smart_sort_trips(df)
         
         # Add filter options
         col1, col2, col3 = st.columns(3)
@@ -580,7 +611,7 @@ def main():
         
         with col3:
             # Sort order
-            sort_order = st.selectbox('Sort by', ['Most Recent', 'Oldest First', 'Longest Duration', 'Destination A-Z'])
+            sort_order = st.selectbox('Sort by', ['Next Upcoming', 'Oldest First', 'Longest Duration', 'Destination A-Z'])
         
         # Apply filters
         filtered_df = df.copy()
@@ -592,20 +623,32 @@ def main():
             filtered_df = filtered_df[filtered_df['year'] == selected_year]
         
         # Apply sorting
+        current_date = datetime.now().replace(tzinfo=None)
+        
         if sort_order == 'Most Recent':
-            filtered_df = filtered_df.sort_values('start_date', ascending=False)
+            # Sort by proximity to today (closest first)
+            filtered_df['days_from_today'] = abs((filtered_df['start_date'] - current_date).dt.days)
+            filtered_df = filtered_df.sort_values('days_from_today')
+            filtered_df = filtered_df.drop('days_from_today', axis=1)
         elif sort_order == 'Oldest First':
             filtered_df = filtered_df.sort_values('start_date', ascending=True)
         elif sort_order == 'Longest Duration':
             filtered_df = filtered_df.sort_values('duration_days', ascending=False)
         else:  # Destination A-Z
             filtered_df = filtered_df.sort_values('destination', ascending=True)
+
+        # Add status indicators
+        current_date = datetime.now().replace(tzinfo=None)
+        filtered_df['Status'] = filtered_df.apply(lambda row: 
+            '🔴 Current' if row['start_date'] <= current_date <= row['end_date']
+            else '🟡 Upcoming' if row['start_date'] > current_date
+            else '🔵 Past', axis=1)
         
         # Format the dataframe for display
-        display_df = filtered_df[['title', 'destination', 'start_date', 'end_date', 'duration_days']].copy()
+        display_df = filtered_df[['Status', 'title', 'destination', 'start_date', 'end_date', 'duration_days']].copy()
         display_df['start_date'] = display_df['start_date'].dt.strftime('%Y-%m-%d')
         display_df['end_date'] = display_df['end_date'].dt.strftime('%Y-%m-%d')
-        display_df.columns = ['Trip', 'Destination', 'Start Date', 'End Date', 'Nights']
+        display_df.columns = ['Status', 'Trip', 'Destination', 'Start Date', 'End Date', 'Nights']
         
         # Show filtered results count
         st.info(f"Showing {len(display_df)} trips")
