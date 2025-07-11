@@ -207,19 +207,58 @@ def process_ics_file(file_hash, file_content):
 
 def extract_destination(title, location):
     """Extract destination from title and location"""
+    import re
+    
     title = str(title).strip()
     location = str(location).strip()
     
-    # Check location field first
-    if location and location.lower() not in ['', 'none', 'null']:
+    # First, clean up URLs from the title
+    if title.startswith(('http://', 'https://', 'Http://', 'Https://')):
+        # Try to extract hotel name from Trip.com URLs
+        if 'trip.com' in title.lower():
+            # Extract from hotelid parameter
+            match = re.search(r'hotelid=(\d+)', title, re.IGNORECASE)
+            if match:
+                # For now, return a generic name - we'll improve this with the location
+                if location and not location.startswith('http'):
+                    return extract_destination(location, '')
+                return "Hotel"
+        # For other URLs, try to use location instead
+        if location and not location.startswith('http'):
+            return extract_destination(location, '')
+        return "Unknown Location"
+    
+    # Clean up hotel names with extra information
+    # Remove everything after common separators
+    for separator in [' (Formerly:', ' - ', ' 〒', '  ', ' (Pin']:
+        if separator in title:
+            title = title.split(separator)[0].strip()
+    
+    # Remove postal codes and addresses (Japanese format)
+    title = re.sub(r'〒?\d{3}-?\d{4}.*', '', title).strip()
+    title = re.sub(r'\d+ Chome-.*', '', title).strip()
+    title = re.sub(r'Pin \d+.*', '', title).strip()
+    
+    # Remove common booking platform prefixes
+    for prefix in ['Airbnb:', 'Booking.com:', 'Trip.com:', 'Hotels.com:', 'Agoda:']:
+        if title.startswith(prefix):
+            title = title[len(prefix):].strip()
+    
+    # If we have a good title now, use it
+    if title and len(title) > 2 and not title.lower() in ['hotel', 'airbnb', 'booking']:
+        return title
+    
+    # Otherwise, try location field
+    if location and location.lower() not in ['', 'none', 'null'] and not location.startswith('http'):
         location_parts = location.split(',')
         if location_parts:
             city = location_parts[0].strip()
-            city = re.sub(r'\b(airport|hotel|center|centre|downtown)\b', '', city, flags=re.IGNORECASE).strip()
+            # Remove common words
+            city = re.sub(r'\b(airport|hotel|center|centre|downtown|station)\b', '', city, flags=re.IGNORECASE).strip()
             if city and len(city) > 2:
                 return city.title()
     
-    # Patterns for extracting destination from title
+    # Try to extract from common patterns
     patterns = [
         r'(?:to|in|at)\s+([A-Z][a-zA-Z\s]+?)(?:\s*[-,:]|\s+on\s+|\s+from\s+|$)',
         r'([A-Z][a-zA-Z\s]+?)\s+(?:trip|vacation|holiday|flight|hotel)',
@@ -232,13 +271,6 @@ def extract_destination(title, location):
             destination = match.group(1).strip()
             if destination.lower() not in ['the', 'hotel', 'flight', 'trip', 'vacation']:
                 return destination
-    
-    # Extract proper nouns
-    words = title.split()
-    for word in words:
-        if word and word[0].isupper() and len(word) > 2:
-            if word.lower() not in ['flight', 'hotel', 'trip', 'vacation', 'holiday', 'the', 'rental', 'car']:
-                return word
     
     return "Unknown"
 
