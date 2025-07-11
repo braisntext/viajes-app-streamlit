@@ -54,6 +54,21 @@ class OptimizedTripMap:
             "Daiiti": [33.2396, 131.6093],  # Beppu area
             "Noreply": [35.6762, 139.6503],  # Default to Tokyo
             "East 21 Tokyo": [35.6762, 139.6503],
+            # Add these to the existing coordinates_cache
+            # Japanese regions/areas
+            "Yanagawa-Shi": [33.1633, 130.4056],
+            "Nakashima": [33.1633, 130.4056],  # Part of Yanagawa
+            "Miyajimaguchi": [34.3135, 132.3029],  # Near Miyajima
+            "Shin-Osaka": [34.7338, 135.5004],  # Shin-Osaka area
+            "Shinsaibashi": [34.6751, 135.5008],  # Osaka area
+            
+            # Common hotel chain locations
+            "Hokke Club": [34.3853, 132.4553],  # Usually in major cities
+            "Business Hotel": [35.6762, 139.6503],  # Default to Tokyo
+            
+            # When location is completely unknown but has Japanese text
+            "ゲストハウス": [35.6762, 139.6503],  # Guesthouse - default Tokyo
+            "旅館": [35.0116, 135.7681],  # Ryokan - default Kyoto
         }
     
     def get_coordinates_fast(self, destination, location_field=''):
@@ -107,6 +122,14 @@ class OptimizedTripMap:
         if dest_clean in self.coordinates_cache:
             return self.coordinates_cache[dest_clean]
         
+        # Try to extract city from destination name if it's a hotel
+        if any(word in destination.lower() for word in ['hotel', 'ryokan', 'hostel', 'inn', 'house', 'club']):
+            # Extract city from hotel name
+            from app import extract_city_from_text
+            city = extract_city_from_text(destination)
+            if city and city.title() in self.coordinates_cache:
+                return self.coordinates_cache[city.title()]
+        
         # For Japanese destinations, add specific handling
         japan_cities = {
             "Matsubaya": [34.6937, 135.5023],  # Osaka
@@ -147,6 +170,27 @@ class OptimizedTripMap:
         
         # Default to asking user or showing unknown
         return None  # Will handle this in create_map_fast
+
+            # Handle None coordinates by asking user or using smart defaults
+        for idx, row in df.iterrows():
+            if row['coordinates'] is None:
+                # Try to guess based on trip sequence
+                if idx > 0 and df.iloc[idx-1]['coordinates'] is not None:
+                    # Use previous location as guess
+                    df.at[idx, 'coordinates'] = df.iloc[idx-1]['coordinates']
+                    st.warning(f"📍 Guessed location for '{row['destination']}' based on previous trip")
+                elif idx < len(df)-1 and df.iloc[idx+1]['coordinates'] is not None:
+                    # Use next location as guess
+                    df.at[idx, 'coordinates'] = df.iloc[idx+1]['coordinates']
+                    st.warning(f"📍 Guessed location for '{row['destination']}' based on next trip")
+                else:
+                    # Default to region based on other trips
+                    nearby_trips = df[df['coordinates'].notna()].head(5)
+                    if not nearby_trips.empty:
+                        avg_lat = sum(c[0] for c in nearby_trips['coordinates']) / len(nearby_trips)
+                        avg_lon = sum(c[1] for c in nearby_trips['coordinates']) / len(nearby_trips)
+                        df.at[idx, 'coordinates'] = [avg_lat, avg_lon]
+                        st.warning(f"📍 Approximated location for '{row['destination']}'")
     
     def create_map_fast(self, df):
         """Create map without geocoding delays"""
